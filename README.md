@@ -1,5 +1,31 @@
 # JESS Components
 
+# JCode - Code examples made easier.
+
+A simple element that lets you create code examples easily.
+Requires prism.js and prism.css for best results.
+
+For HTML this is very easy as you can just embed the entire html code and it will work out of the box:
+
+```html
+<j-code language="html">
+    <div>
+        <span>I am an example</span>
+    </div>
+</j-code>
+```
+
+For other things, like JavaScript you need to use the contents property:
+
+```html
+<j-code
+    language="js"
+    contents="function HelloWorld() {\n   sendMessage();\n};"
+>
+</j-code>
+```
+
+
 # Support us
 
 > If you are using this for paid products and services please consider:

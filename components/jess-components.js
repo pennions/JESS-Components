@@ -1,1 +1,1 @@
-export { JessTestComponent } from "./TestComponent";
+export { JCode } from "./JCode";
