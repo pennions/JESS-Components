@@ -32,16 +32,16 @@ export class JCode extends HTMLElement {
         const language = this.getAttribute("language");
         let contents = this.getAttribute("contents");
 
-        let userEntry = this.innerHTML.substring(1).trimEnd();
-        if (language === "html") {
+        let userEntry = contents ? contents : this.innerHTML.substring(1).trimEnd();
+        if (language === "html" && !contents) {
             userEntry = removeExcessWhitespace(userEntry);
             userEntry = escapeHtml(userEntry);
             this.innerHTML = `<pre class="border language-${language} m-0"><code>${userEntry}</code></pre>`;
         }
         else {
-            contents = escapeHtml(contents);
-            contents = contents.replace(/\\n/gmi, '\n'); /** somehow replacing this, actually works. */
-            this.innerHTML = `<pre class="border language-${language} m-0"><code>${contents}</code></pre>`;
+            userEntry = escapeHtml(userEntry);
+            userEntry = userEntry.replace(/\\n/gmi, '\n'); /** somehow replacing this, actually works. */
+            this.innerHTML = `<pre class="border language-${language} m-0"><code>${userEntry}</code></pre>`;
         }
     }
 }

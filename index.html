@@ -5,11 +5,9 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vite App</title>
-    <script src="/js/prism.js"></script>
-    <link rel="stylesheet" href="/css/prism.css" />
   </head>
   <body>
-    <div class="w-25">
+    <div class="w-50">
       <j-code language="html">
         <div>
           <span>I am an example</span>
@@ -18,8 +16,25 @@
       <j-code
         language="js"
         contents="function HelloWorld() {\n   sendMessage();\n};"
-      >
-      </j-code>
+      ></j-code>
+
+      <j-code
+        language="html"
+        contents='<j-code language="html">\n    <p>Example HTML</p>\n</j-code>'
+      ></j-code>
+      <p>
+        Because the component uses '\n' for formatting, the example has /n in
+        the contents.
+      </p>
+      <j-code
+        language="html"
+        contents='<jscode\n    language="js"\n    contents="function HelloWorld() { /n   sendMessage();/n};">\n</j-code>'
+      ></j-code>
+    </div>
+
+    <div>
+      <j-table id="snake-set"></j-table>
+      <j-table id="iris-set"></j-table>
     </div>
     <script type="module" src="/main.js"></script>
   </body>
