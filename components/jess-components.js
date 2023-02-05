@@ -4,3 +4,4 @@ import "./css/prism.css";
 
 export { JCode } from "./JCode";
 export { JTable } from "./JTable";
+export { JDataTable } from "./JDataTable";

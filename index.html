@@ -28,13 +28,16 @@
       </p>
       <j-code
         language="html"
-        contents='<jscode\n    language="js"\n    contents="function HelloWorld() { /n   sendMessage();/n};">\n</j-code>'
+        contents='<j-code\n    language="js"\n    contents="function HelloWorld() { /n   sendMessage();/n};">\n</j-code>'
       ></j-code>
     </div>
 
     <div>
-      <j-table id="snake-set"></j-table>
-      <j-table id="iris-set"></j-table>
+      <j-table
+        id="snake-set"
+        footer='Snakes, source: <a href="https://en.wikipedia.org/wiki/Snake" target="_blank">wikipedia</a>'
+      ></j-table>
+      <j-data-table id="iris-set"></j-data-table>
     </div>
     <script type="module" src="/main.js"></script>
   </body>
