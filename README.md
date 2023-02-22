@@ -1,5 +1,14 @@
 # JESS Components
 
+# Installation
+
+In the browser:
+
+```html
+<link rel="stylesheet" href="./jess-components.css" />
+<script defer src="./jess-components.min.js"></script>
+```
+
 # JCode - Code examples made easier.
 
 A simple element that lets you create code examples easily.

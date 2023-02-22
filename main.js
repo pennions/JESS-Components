@@ -6,3 +6,4 @@ import { snakeSet } from './snakeSet';
 
 document.getElementById('snake-set').contents = snakeSet;
 document.getElementById('iris-set').setAttribute('contents', JSON.stringify(irisSet));
+document.getElementById('iris-set').setAttribute("current-page",  5);

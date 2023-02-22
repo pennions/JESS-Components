@@ -8,6 +8,7 @@ export class JCode extends HTMLElement {
         let contents = this.getAttribute("contents");
 
         let userEntry = contents ? contents : this.innerHTML.substring(1).trimEnd();
+
         if (language === "html" && !contents) {
             userEntry = this.removeExcessWhitespace(userEntry);
             userEntry = this.escapeHtml(userEntry);
@@ -22,7 +23,11 @@ export class JCode extends HTMLElement {
 
     /** removes the indentation caused by formatters and linters in the editor */
     removeExcessWhitespace(value) {
+        if (!value) return value;
+
         const allWhitespaceGroups = value.match(/\s+(?=\S)/gmi);
+
+        if (allWhitespaceGroups.length === 0) return value;
         const firstGroup = allWhitespaceGroups[0];
 
         const groupsToTrim = allWhitespaceGroups.filter(awg => awg.includes(firstGroup));

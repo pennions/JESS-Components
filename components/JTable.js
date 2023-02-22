@@ -4,18 +4,18 @@ export class JTable extends HTMLElement {
     };
 
     get contents() {
-        return this.tableContents || [];
+        return this._contents || [];
     }
     set contents(value) {
-        this.tableContents = value;
+        this._contents = value;
         this.render();
     }
 
     get footer() {
-        return this.footerContents || '';
+        return this._footer || '';
     }
     set footer(value) {
-        this.footerContents = value;
+        this._footer = value;
         this.render();
     }
 
@@ -24,18 +24,46 @@ export class JTable extends HTMLElement {
     }
 
     connectedCallback() {
+        this.setContents();
         if (this.contents.length) {
             this.render();
         }
     }
 
+    setContents(newValue) {
+        /** check if it came from an attibute callback, or directly set as property */
+        const valueToSet = newValue || this.contents;
+        try {
+            this.contents = typeof valueToSet === "string" ? JSON.parse(valueToSet) || [] : valueToSet;
+        }
+        catch (e) {
+            this.contents = [];
+        }
+    }
+
     render() {
-        const tableElement = this.constructTableFromContents(this.contents);
-        this.innerHTML = tableElement.outerHTML;
+        const table = document.createElement('table');
+        table.classList.add("table");
+
+        const tbody = this.constructTableBodyFromContents();
+        const header = this.constructTableHeaderFromContents();
+        table.appendChild(header);
+        table.appendChild(tbody);
+
+        if (this.footer) {
+            const footer = this.constructTableFooter();
+            table.appendChild(footer);
+        }
+        this.innerHTML = table.outerHTML;
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
-        this[name] = newValue;
+        if (name === "contents") {
+            this.setContents(newValue);
+        }
+        else {
+            this[name] = newValue;
+        }
         this.render();
     }
 
@@ -47,63 +75,66 @@ export class JTable extends HTMLElement {
         return result.charAt(0).toUpperCase() + result.slice(1);
     }
 
-    constructTableFromContents(contents) {
-        const table = document.createElement('table');
-        const footerContents = this.footer;
-        let jsonArray = [];
-
-        try {
-            jsonArray = typeof contents === "string" ? JSON.parse(contents) || [] : contents;
-        }
-        catch (e) {
-            return table;
-        }
-
-        const tbody = document.createElement('tbody');
-        const items = jsonArray.length;
-
-        if (items === 0) return table;
-
-        /** create the header */
-        const props = Object.keys(jsonArray[0]);
+    constructTableHeaderFromContents() {
         const header = document.createElement('thead');
+        if (!this.contents.length) return header;
+
+        const properties = Object.keys(this.contents[0]);
+
         const headerRow = document.createElement('tr');
 
-        for (const prop of props) {
+        for (const prop of properties) {
             const headerCell = document.createElement('th');
             headerCell.innerText = this.convertJsonKeyToTitle(prop);
             headerRow.appendChild(headerCell);
         }
         header.appendChild(headerRow);
+        return header;
+    }
 
-        for (let item = 0; item < items; item++) {
+    /**
+     * @param {objectArray} customContents optional. Used for pagination
+     */
+    constructTableBodyFromContents(customContents) {
+        const renderedContents = customContents || this.contents;
 
-            const json = jsonArray[item];
+        const tbody = document.createElement('tbody');
+
+        if (!renderedContents.length) return tbody;
+        const totalNumberOfItems = renderedContents.length;
+
+        for (let item = 0; item < totalNumberOfItems; item++) {
+
+            const json = renderedContents[item];
             const row = document.createElement('tr');
 
-            for (const prop of props) {
+            for (const prop in json) {
                 const td = document.createElement('td');
                 td.innerText = json[prop];
                 row.appendChild(td);
             }
             tbody.appendChild(row);
         }
+        return tbody;
+    }
 
-        table.appendChild(header);
-        table.appendChild(tbody);
-        if (footerContents) {
-            const footer = document.createElement("tfoot");
-            const footerTr = document.createElement("tr");
-            const footerTd = document.createElement("td");
-            footerTd.setAttribute("colspan", props.length);
-            footerTd.innerHTML = footerContents;
-            footer.appendChild(footerTr);
-            footerTr.appendChild(footerTd);
-            table.appendChild(footer);
-        }
+    constructTableFooter() {
+        const footer = document.createElement("tfoot");
 
-        table.classList.add("table");
-        return table;
+        const footerContents = this.footer;
+
+        if (!footerContents) return footer;
+        if (!this.contents.length) return footer;
+
+        const propLength = Object.keys(this.contents[0]).length;
+
+        const footerTr = document.createElement("tr");
+        const footerTd = document.createElement("td");
+        footerTd.setAttribute("colspan", propLength);
+        footerTd.innerHTML = footerContents;
+        footer.appendChild(footerTr);
+        footerTr.appendChild(footerTd);
+        return footer;
     }
 }
 
