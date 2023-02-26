@@ -1,18 +1,11 @@
 import { JTable } from './JTable';
 import { backToStartIcon, goToEndIcon, nextIcon, previousIcon } from './EmbeddedFeatherIcons';
 
-/**
- * implementing features of:
- * https://www.uxbooth.com/articles/designing-user-friendly-data-tables/
- */
-
-export class JDataTable extends JTable {
+export class JPaginatedTable extends JTable {
 
     counterClass = 'page-counter';
     itemsPerPageClass = 'items-per-page';
-
     paginationButtonClass = 'pagination-button';
-
     nextPageClass = "next-page";
     previousPageClass = "previous-page";
     lastPageClass = "last-page";
@@ -36,12 +29,36 @@ export class JDataTable extends JTable {
         this.render();
     }
 
+    get events() {
+        return this._events || [];
+    }
+    /**
+     * Event is an object with the following signature: { selector: String, eventType: String, functionName: String }
+     */
+    set events(event) {
+        const eventArray = Array.isArray(event) ? event : [event];
+        this._events = this.events.concat(eventArray);
+    }
+
     static get observedAttributes() {
         return super.observedAttributes.concat(["current-page", "items-per-page"]);
     };
 
     constructor() {
         super();
+
+        this.events = [
+            {
+                selector: "." + this.itemsPerPageClass,
+                eventType: "change",
+                callback: "handleItemsPerPage",
+            },
+            {
+                selector: "." + this.paginationButtonClass,
+                eventType: "click",
+                callback: "handlePageFlip",
+            }
+        ];
     }
 
     connectedCallback() {
@@ -67,7 +84,7 @@ export class JDataTable extends JTable {
         paginationContainer.classList.add("row", "align-center", "justify-between", "my-1",);
         const itemsSelect = document.createElement('select');
         itemsSelect.classList.add("pr-1", this.itemsPerPageClass);
-        const itemsPerPage = [10, 25, 50, 75, 100, this.contents.length];
+        const itemsPerPage = [10, 15, 20, 25, 50, 75, 100, this.contents.length];
 
         for (const count of itemsPerPage) {
             const itemsOption = document.createElement('option');
@@ -101,9 +118,8 @@ export class JDataTable extends JTable {
 
     constructPaginationButton(icon) {
         const paginationButton = document.createElement("button");
-        paginationButton.classList.add("p-0", "column", this.paginationButtonClass);
+        paginationButton.classList.add("p-0", "column", "no-border", "icon", this.paginationButtonClass);
         paginationButton.innerHTML = icon;
-        paginationButton.classList.add("no-border", "icon-gray-dark");
         return paginationButton;
     }
 
@@ -208,33 +224,23 @@ export class JDataTable extends JTable {
 
     addEvents() {
         if (this.isConnected) {
-            const itemsPerPage = this.querySelectorAll("." + this.itemsPerPageClass);
+            for (const eventToAdd of this.events) {
+                const elements = this.querySelectorAll(eventToAdd.selector);
 
-            for (const selectEl of itemsPerPage) {
-                selectEl.addEventListener("change", (event) => this.handleItemsPerPage(event));
+                for (const element of elements) {
+                    /** the callback needs to be the key of the property corresponding to the function of the class, to preserve 'this' */
+                    element.addEventListener(eventToAdd.eventType, (event) => this[eventToAdd.callback](event));
+                }
             }
-
-            const paginationButtons = this.querySelectorAll("." + this.paginationButtonClass);
-
-            for (const paginationButtonEl of paginationButtons) {
-                paginationButtonEl.addEventListener("click", (event) => this.handlePageFlip(event));
-            }
-
         }
     }
 
     removeEvents() {
-        const itemsPerPage = this.querySelectorAll("." + this.itemsPerPageClass);
-        if (this.isConnected && itemsPerPage.length) {
-            for (const selectEl of itemsPerPage) {
-                selectEl.removeEventListener("change", (event) => this.handleItemsPerPage(event));
-            }
-        }
+        for (const eventToRemove of this.events) {
+            const elements = this.querySelectorAll(eventToRemove.selector);
 
-        const paginationButtons = this.querySelectorAll("." + this.paginationButtonClass);
-        if (this.isConnected && paginationButtons.length) {
-            for (const paginationButtonEl of paginationButtons) {
-                paginationButtonEl.removeEventListener("click", (event) => this.handlePageFlip(event));
+            for (const element of elements) {
+                element.removeEventListener(eventToRemove.eventType, (event) => this[eventToRemove.callback](event));
             }
         }
     }
@@ -272,7 +278,10 @@ export class JDataTable extends JTable {
 
         container.appendChild(this.constructPaginationElement());
         container.appendChild(table);
-        container.appendChild(this.constructPaginationElement());
+
+        if (this.itemsPerPage >= 25) {
+            container.appendChild(this.constructPaginationElement());
+        }
 
         this.innerHTML = container.outerHTML;
         this.addEvents();
@@ -284,4 +293,4 @@ export class JDataTable extends JTable {
     }
 }
 
-customElements.define("j-data-table", JDataTable);
+customElements.define("j-paginated-table", JPaginatedTable);
