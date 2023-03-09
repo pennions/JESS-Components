@@ -1,14 +1,35 @@
+import JOQ from '@pennions/joq';
+import { sortAscendingIcon, sortDescendingIcon } from './EmbeddedFeatherIcons';
+
 export class JTable extends HTMLElement {
+
+    /** initialize orderings, because we need them in the function */
+    _orderBy = [];
+    _asc = [];
+    _desc = [];
+
     static get observedAttributes() {
-        return ["contents", "footer"];
+        return ["contents", "footer", "order-by", "asc", "desc"];
     };
 
-    get contents() {
-        return this._contents || [];
-    }
+    orderButtonClass = "order-by";
+
     set contents(value) {
-        this._contents = value;
+        this._contents = new JOQ(value);
         this.render();
+    }
+
+    get contents() {
+        return this._contents ? this._contents.execute() : [];
+    }
+
+    get queryableObject() {
+        if (Array.isArray(this._contents)) {
+            return new JOQ([]);
+        }
+        else {
+            return this._contents;
+        }
     }
 
     get footer() {
@@ -19,15 +40,55 @@ export class JTable extends HTMLElement {
         this.render();
     }
 
+    get orderBy() {
+        return this._orderBy || [];
+    }
+    set orderBy(value) {
+        this._orderBy = Array.isArray(value) ? value : value.split(",").map(value => value.trim());
+        this.render();
+    }
+
+    get asc() {
+        return this._asc || [];
+    }
+
+    set asc(value) {
+        this._asc = Array.isArray(value) ? value : value.split(",");
+    }
+
+    get desc() {
+        return this._desc || [];
+    }
+
+    set desc(value) {
+        this._desc = Array.isArray(value) ? value : value.split(",");
+    }
+
     constructor() {
         super();
+
+        this.events = [
+            {
+                selector: "." + this.orderButtonClass,
+                eventType: "click",
+                callback: "handleSort",
+            }
+        ];
     }
 
     connectedCallback() {
         this.setContents();
+        // this.setOrder();
         if (this.contents.length) {
             this.render();
         }
+    }
+
+    constructTableButton(icon, buttonClass) {
+        const tableButton = document.createElement("button");
+        tableButton.classList.add("p-0", "column", "no-border", "icon", buttonClass);
+        tableButton.innerHTML = icon;
+        return tableButton;
     }
 
     setContents(newValue) {
@@ -54,17 +115,25 @@ export class JTable extends HTMLElement {
             const footer = this.constructTableFooter();
             table.appendChild(footer);
         }
+
         this.innerHTML = table.outerHTML;
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
-        if (name === "contents") {
-            this.setContents(newValue);
+
+        switch (name) {
+            case "contents": {
+                this.setContents(newValue);
+                break;
+            }
+            case "order-by": {
+                this.orderBy = newValue;
+            }
+            default: {
+                this[name] = newValue;
+                break;
+            }
         }
-        else {
-            this[name] = newValue;
-        }
-        this.render();
     }
 
     convertJsonKeyToTitle(jsonKey) {
@@ -85,7 +154,31 @@ export class JTable extends HTMLElement {
 
         for (const prop of properties) {
             const headerCell = document.createElement('th');
-            headerCell.innerText = this.convertJsonKeyToTitle(prop);
+            headerCell.classList.add("py-1");
+
+            const headerElement = document.createElement('button');
+            headerElement.classList.add(this.orderButtonClass, "no-border", "row", "no-gap", "w-100", "no-wrap", "align-center");
+            headerElement.dataset.property = prop;
+
+            if (this.orderBy.includes(prop)) {
+
+                let orderIcon = sortAscendingIcon;
+                if (this.desc.includes(prop)) {
+                    orderIcon = sortDescendingIcon;
+                }
+                const orderIconElement = document.createElement('span');
+                orderIconElement.innerHTML = orderIcon;
+                orderIconElement.classList.add("icon-black", "mr-1");
+                headerElement.append(orderIconElement);
+            }
+
+            const headerTextElement = document.createElement('span');
+            headerTextElement.classList.add("stretch", "mx-1");
+            headerTextElement.innerText = this.convertJsonKeyToTitle(prop);
+
+            headerElement.appendChild(headerTextElement);
+
+            headerCell.appendChild(headerElement);
             headerRow.appendChild(headerCell);
         }
         header.appendChild(headerRow);
@@ -110,7 +203,10 @@ export class JTable extends HTMLElement {
 
             for (const prop in json) {
                 const td = document.createElement('td');
-                td.innerText = json[prop];
+                const textEl = document.createElement('span');
+                textEl.classList.add("px-1");
+                textEl.innerText = json[prop];
+                td.appendChild(textEl);
                 row.appendChild(td);
             }
             tbody.appendChild(row);
@@ -135,6 +231,76 @@ export class JTable extends HTMLElement {
         footer.appendChild(footerTr);
         footerTr.appendChild(footerTd);
         return footer;
+    }
+
+    handleSort(event) {
+
+        const buttonParent = this._findParentElement(event.target, "BUTTON");
+        const property = buttonParent.dataset.property;
+
+        const ascIsSet = this.asc.includes(property);
+        const descIsSet = this.desc.includes(property);
+        const isAlreadySorted = this.queryableObject.sortDetails.some(sortDetail => sortDetail.propertyName === property);
+
+        /** remove the one set */
+        if (isAlreadySorted) {
+            this.orderBy = this.orderBy.filter(orderByProp => orderByProp !== property);
+            this.queryableObject.sortDetails = this.queryableObject.sortDetails.filter(sortDetail => sortDetail.propertyName !== property);
+            this._asc = this.asc.filter(ascProp => ascProp !== property);
+            this._desc = this.desc.filter(descProp => descProp !== property);
+        }
+
+        if (!ascIsSet && !descIsSet) {
+            this.queryableObject.orderBy(property, "asc");
+            this._orderBy.push(property);
+            this._asc.push(property);
+        }
+        else if (ascIsSet) {
+            this.queryableObject.orderBy(property, "desc");
+            this._orderBy.push(property);
+            this._desc.push(property);
+        }
+        this.render();
+    }
+
+    addEvents() {
+        if (this.isConnected) {
+            for (const eventToAdd of this.events) {
+                const elements = this.querySelectorAll(eventToAdd.selector);
+
+                for (const element of elements) {
+                    /** the callback needs to be the key of the property corresponding to the function of the class, to preserve 'this' */
+                    element.addEventListener(eventToAdd.eventType, (event) => this[eventToAdd.callback](event));
+                }
+            }
+        }
+    }
+
+    removeEvents() {
+        for (const eventToRemove of this.events) {
+            const elements = this.querySelectorAll(eventToRemove.selector);
+
+            for (const element of elements) {
+                element.removeEventListener(eventToRemove.eventType, (event) => this[eventToRemove.callback](event));
+            }
+        }
+    }
+
+    _findParentElement(node, nodeName) {
+        if (node.nodeName === nodeName) {
+            return node;
+        }
+        else {
+            return this._findParentElement(node.parentNode, nodeName);
+        }
+    }
+
+    beforeRender() {
+        this.removeEvents();
+    }
+
+    afterRender() {
+        this.addEvents();
     }
 }
 

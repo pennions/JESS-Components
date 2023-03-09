@@ -32,6 +32,7 @@ export class JPaginatedTable extends JTable {
     get events() {
         return this._events || [];
     }
+
     /**
      * Event is an object with the following signature: { selector: String, eventType: String, functionName: String }
      */
@@ -40,32 +41,38 @@ export class JPaginatedTable extends JTable {
         this._events = this.events.concat(eventArray);
     }
 
+    /**
+     * the scale on which you can paginate.
+     */
+    get scale() {
+        return this._scale || [10, 15, 20, 25, 50, 75, 100];
+    }
+
+    set scale(value) {
+        this._scale = Array.isArray(value) ? value : value.split(",");
+    }
+
+
     static get observedAttributes() {
-        return super.observedAttributes.concat(["current-page", "items-per-page"]);
+        return super.observedAttributes.concat(["current-page", "items-per-page", "scale"]);
     };
 
     constructor() {
         super();
 
-        this.events = [
+        this.events.push(
             {
                 selector: "." + this.itemsPerPageClass,
                 eventType: "change",
                 callback: "handleItemsPerPage",
-            },
+            });
+
+        this.events.push(
             {
                 selector: "." + this.paginationButtonClass,
                 eventType: "click",
                 callback: "handlePageFlip",
-            }
-        ];
-    }
-
-    connectedCallback() {
-        this.setContents();
-        if (this.contents.length) {
-            this.render();
-        }
+            });
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
@@ -84,12 +91,13 @@ export class JPaginatedTable extends JTable {
         paginationContainer.classList.add("row", "align-center", "justify-between", "my-1",);
         const itemsSelect = document.createElement('select');
         itemsSelect.classList.add("pr-1", this.itemsPerPageClass);
-        const itemsPerPage = [10, 15, 20, 25, 50, 75, 100, this.contents.length];
+        const contentsLength = this.contents.length;
+        const itemsPerPage = [...this.scale, contentsLength];
 
         for (const count of itemsPerPage) {
             const itemsOption = document.createElement('option');
             itemsOption.value = count;
-            itemsOption.innerHTML = count > 100 ? "all" : count.toString();
+            itemsOption.innerHTML = count === contentsLength ? "all" : count.toString();
 
             if (count === this.itemsPerPage) {
                 itemsOption.setAttribute("selected", "");
@@ -116,21 +124,18 @@ export class JPaginatedTable extends JTable {
         return paginationContainer;
     }
 
-    constructPaginationButton(icon) {
-        const paginationButton = document.createElement("button");
-        paginationButton.classList.add("p-0", "column", "no-border", "icon", this.paginationButtonClass);
-        paginationButton.innerHTML = icon;
-        return paginationButton;
+    constructTableContainer() {
+        return document.createElement('div');
     }
 
     constructPaginationButtons() {
         const buttonsContainer = document.createElement("div");
         buttonsContainer.classList.add("row");
 
-        const startButton = this.constructPaginationButton(backToStartIcon);
+        const startButton = this.constructTableButton(backToStartIcon, this.paginationButtonClass);
         startButton.classList.add(this.firstPageClass);
 
-        const previousButton = this.constructPaginationButton(previousIcon);
+        const previousButton = this.constructTableButton(previousIcon, this.paginationButtonClass);
         previousButton.classList.add(this.previousPageClass);
 
         if (this.currentPage === 1 || this.itemsPerPage === this.contents.length) {
@@ -138,10 +143,10 @@ export class JPaginatedTable extends JTable {
             previousButton.setAttribute("disabled", "");
         }
 
-        const nextButton = this.constructPaginationButton(nextIcon);
+        const nextButton = this.constructTableButton(nextIcon, this.paginationButtonClass);
         nextButton.classList.add(this.nextPageClass);
 
-        const endButton = this.constructPaginationButton(goToEndIcon);
+        const endButton = this.constructTableButton(goToEndIcon, this.paginationButtonClass);
         endButton.classList.add(this.lastPageClass);
 
         if (this.currentPage === this.getLastPageNumber() || this.itemsPerPage === this.contents.length) {
@@ -177,21 +182,12 @@ export class JPaginatedTable extends JTable {
         }
     }
 
-    _findParentElement(node, nodeName) {
-        if (node.nodeName === nodeName) {
-            return node;
-        }
-        else {
-            return this._findParentElement(node.parentNode, nodeName);
-        }
-    }
-
     getLastPageNumber() {
         return Math.ceil(this.contents.length / this.itemsPerPage);
     }
 
     handlePageFlip(event) {
-        const buttonParent = this._findParentElement(event.target, "BUTTON");
+        const buttonParent = super._findParentElement(event.target, "BUTTON");
         const classList = buttonParent.classList;
 
         if (classList.contains(this.firstPageClass)) {
@@ -222,28 +218,6 @@ export class JPaginatedTable extends JTable {
         this.render();
     }
 
-    addEvents() {
-        if (this.isConnected) {
-            for (const eventToAdd of this.events) {
-                const elements = this.querySelectorAll(eventToAdd.selector);
-
-                for (const element of elements) {
-                    /** the callback needs to be the key of the property corresponding to the function of the class, to preserve 'this' */
-                    element.addEventListener(eventToAdd.eventType, (event) => this[eventToAdd.callback](event));
-                }
-            }
-        }
-    }
-
-    removeEvents() {
-        for (const eventToRemove of this.events) {
-            const elements = this.querySelectorAll(eventToRemove.selector);
-
-            for (const element of elements) {
-                element.removeEventListener(eventToRemove.eventType, (event) => this[eventToRemove.callback](event));
-            }
-        }
-    }
 
     getPageContents() {
         if (!this.contents.length) return [];
@@ -260,7 +234,7 @@ export class JPaginatedTable extends JTable {
     }
 
     render() {
-        this.removeEvents();
+        super.beforeRender();
         this.classList.add("inline-block");
         const table = document.createElement('table');
         table.classList.add("table");
@@ -274,7 +248,7 @@ export class JPaginatedTable extends JTable {
             const footer = this.constructTableFooter();
             table.appendChild(footer);
         }
-        const container = document.createElement('div');
+        const container = this.constructTableContainer();
 
         container.appendChild(this.constructPaginationElement());
         container.appendChild(table);
@@ -284,7 +258,8 @@ export class JPaginatedTable extends JTable {
         }
 
         this.innerHTML = container.outerHTML;
-        this.addEvents();
+        super.afterRender();
+
     }
 
     /** called when component is removed */
