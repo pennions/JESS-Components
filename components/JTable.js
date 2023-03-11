@@ -9,7 +9,7 @@ export class JTable extends HTMLElement {
     _desc = [];
 
     static get observedAttributes() {
-        return ["contents", "footer", "order-by", "asc", "desc"];
+        return ["contents", "footer"];
     };
 
     orderButtonClass = "order-by";
@@ -45,23 +45,12 @@ export class JTable extends HTMLElement {
     }
     set orderBy(value) {
         this._orderBy = Array.isArray(value) ? value : value.split(",").map(value => value.trim());
+        const allProperties = this._orderBy.map(obp => obp.propertyName);
+
+        for (const property of allProperties) {
+            this.applySortToTable(property);
+        }
         this.render();
-    }
-
-    get asc() {
-        return this._asc || [];
-    }
-
-    set asc(value) {
-        this._asc = Array.isArray(value) ? value : value.split(",");
-    }
-
-    get desc() {
-        return this._desc || [];
-    }
-
-    set desc(value) {
-        this._desc = Array.isArray(value) ? value : value.split(",");
     }
 
     constructor() {
@@ -78,10 +67,15 @@ export class JTable extends HTMLElement {
 
     connectedCallback() {
         this.setContents();
-        // this.setOrder();
+
         if (this.contents.length) {
             this.render();
         }
+    }
+
+    /** called when component is removed */
+    disconnectedCallback() {
+        this.removeEvents();
     }
 
     constructTableButton(icon, buttonClass) {
@@ -153,6 +147,7 @@ export class JTable extends HTMLElement {
         const headerRow = document.createElement('tr');
 
         for (const prop of properties) {
+            const orderProperties = this.orderBy.find(obp => obp.propertyName === prop);
             const headerCell = document.createElement('th');
             headerCell.classList.add("py-1");
 
@@ -160,15 +155,15 @@ export class JTable extends HTMLElement {
             headerElement.classList.add(this.orderButtonClass, "no-border", "row", "no-gap", "w-100", "no-wrap", "align-center");
             headerElement.dataset.property = prop;
 
-            if (this.orderBy.includes(prop)) {
+            if (orderProperties) {
 
                 let orderIcon = sortAscendingIcon;
-                if (this.desc.includes(prop)) {
+                if (orderProperties.direction === 'desc') {
                     orderIcon = sortDescendingIcon;
                 }
                 const orderIconElement = document.createElement('span');
                 orderIconElement.innerHTML = orderIcon;
-                orderIconElement.classList.add("icon-black", "mr-1");
+                orderIconElement.classList.add("icon-black", "mr-1", "column");
                 headerElement.append(orderIconElement);
             }
 
@@ -234,33 +229,28 @@ export class JTable extends HTMLElement {
     }
 
     handleSort(event) {
-
         const buttonParent = this._findParentElement(event.target, "BUTTON");
         const property = buttonParent.dataset.property;
-
-        const ascIsSet = this.asc.includes(property);
-        const descIsSet = this.desc.includes(property);
-        const isAlreadySorted = this.queryableObject.sortDetails.some(sortDetail => sortDetail.propertyName === property);
-
-        /** remove the one set */
-        if (isAlreadySorted) {
-            this.orderBy = this.orderBy.filter(orderByProp => orderByProp !== property);
-            this.queryableObject.sortDetails = this.queryableObject.sortDetails.filter(sortDetail => sortDetail.propertyName !== property);
-            this._asc = this.asc.filter(ascProp => ascProp !== property);
-            this._desc = this.desc.filter(descProp => descProp !== property);
-        }
-
-        if (!ascIsSet && !descIsSet) {
-            this.queryableObject.orderBy(property, "asc");
-            this._orderBy.push(property);
-            this._asc.push(property);
-        }
-        else if (ascIsSet) {
-            this.queryableObject.orderBy(property, "desc");
-            this._orderBy.push(property);
-            this._desc.push(property);
-        }
+        this.applySortToTable(property);
         this.render();
+    }
+
+    applySortToTable(property) {
+        const sortedProperty = this.queryableObject.sortDetails.find(sortDetail => sortDetail.propertyName === property);
+        /** remove the one set */
+        if (sortedProperty) {
+            this.orderBy = this.orderBy.filter(orderBy => orderBy.propertyName !== sortedProperty.propertyName);
+            this.queryableObject.sortDetails = this.queryableObject.sortDetails.filter(sortDetail => sortDetail.propertyName !== property);
+        }
+
+        if (!sortedProperty) {
+            this.queryableObject.orderBy(property, "asc");
+            this._orderBy.push({ propertyName: property, direction: "asc" });
+        }
+        else if (sortedProperty.direction === 'asc') {
+            this.queryableObject.orderBy(property, "desc");
+            this._orderBy.push({ propertyName: property, direction: "desc" });
+        }
     }
 
     addEvents() {

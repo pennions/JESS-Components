@@ -261,11 +261,6 @@ export class JPaginatedTable extends JTable {
         super.afterRender();
 
     }
-
-    /** called when component is removed */
-    disconnectedCallback() {
-        this.removeEvents();
-    }
 }
 
 customElements.define("j-paginated-table", JPaginatedTable);
