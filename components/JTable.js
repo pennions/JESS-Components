@@ -3,11 +3,6 @@ import { sortAscendingIcon, sortDescendingIcon } from './EmbeddedFeatherIcons';
 
 export class JTable extends HTMLElement {
 
-    /** initialize orderings, because we need them in the function */
-    _orderBy = [];
-    _asc = [];
-    _desc = [];
-
     static get observedAttributes() {
         return ["contents", "footer"];
     };
@@ -231,6 +226,7 @@ export class JTable extends HTMLElement {
     handleSort(event) {
         const buttonParent = this._findParentElement(event.target, "BUTTON");
         const property = buttonParent.dataset.property;
+
         this.applySortToTable(property);
         this.render();
     }
@@ -239,7 +235,7 @@ export class JTable extends HTMLElement {
         const sortedProperty = this.queryableObject.sortDetails.find(sortDetail => sortDetail.propertyName === property);
         /** remove the one set */
         if (sortedProperty) {
-            this.orderBy = this.orderBy.filter(orderBy => orderBy.propertyName !== sortedProperty.propertyName);
+            this._orderBy = this.orderBy.filter(orderBy => orderBy.propertyName !== sortedProperty.propertyName);
             this.queryableObject.sortDetails = this.queryableObject.sortDetails.filter(sortDetail => sortDetail.propertyName !== property);
         }
 
