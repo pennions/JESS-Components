@@ -3,6 +3,6 @@ import "./js/prism.js";
 import "./css/prism.css";
 
 export { JCode } from "./JCode";
+export { JBaseTable } from "./JBaseTable";
 export { JTable } from "./JTable";
-export { JPaginatedTable } from "./JPaginatedTable";
 export { JDataTable } from "./JDataTable";

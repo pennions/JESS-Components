@@ -1,292 +1,265 @@
-import JOQ from '@pennions/joq';
-import { sortAscendingIcon, sortDescendingIcon } from './EmbeddedFeatherIcons';
+import { backToStartIcon, goToEndIcon, nextIcon, previousIcon } from './EmbeddedFeatherIcons';
+import { JBaseTable } from './JBaseTable';
 
-export class JTable extends HTMLElement {
+export class JTable extends JBaseTable {
+
+    counterClass = 'page-counter';
+    itemsPerPageClass = 'items-per-page';
+    paginationButtonClass = 'pagination-button';
+    nextPageClass = "next-page";
+    previousPageClass = "previous-page";
+    lastPageClass = "last-page";
+    firstPageClass = "first-page";
+
+    get currentPage() {
+        return this._currentPage || 1;
+    }
+
+    set currentPage(value) {
+        this._currentPage = value;
+        this.render();
+    }
+
+    get itemsPerPage() {
+        return this._itemsPerPage || 50;
+    }
+
+    set itemsPerPage(value) {
+        this._itemsPerPage = parseInt(value);
+        this.render();
+    }
+
+    get events() {
+        return this._events || [];
+    }
+
+    /**
+     * Event is an object with the following signature: { selector: String, eventType: String, functionName: String }
+     */
+    set events(event) {
+        const eventArray = Array.isArray(event) ? event : [event];
+        this._events = this.events.concat(eventArray);
+    }
+
+    /**
+     * the scale on which you can paginate.
+     */
+    get scale() {
+        return this._scale || [10, 15, 20, 25, 50, 75, 100];
+    }
+
+    set scale(value) {
+        this._scale = Array.isArray(value) ? value : value.split(",");
+    }
+
 
     static get observedAttributes() {
-        return ["contents", "footer"];
+        return super.observedAttributes.concat(["current-page", "items-per-page", "scale"]);
     };
-
-    orderButtonClass = "order-by";
-
-    set contents(value) {
-        this._contents = new JOQ(value);
-        this.render();
-    }
-
-    get contents() {
-        return this._contents ? this._contents.execute() : [];
-    }
-
-    get queryableObject() {
-        if (Array.isArray(this._contents)) {
-            return new JOQ([]);
-        }
-        else {
-            return this._contents;
-        }
-    }
-
-    get footer() {
-        return this._footer || '';
-    }
-    set footer(value) {
-        this._footer = value;
-        this.render();
-    }
-
-    get orderBy() {
-        return this._orderBy || [];
-    }
-    set orderBy(value) {
-        this._orderBy = Array.isArray(value) ? value : value.split(",").map(value => value.trim());
-        const allProperties = this._orderBy.map(obp => obp.propertyName);
-
-        for (const property of allProperties) {
-            this.applySortToTable(property);
-        }
-        this.render();
-    }
 
     constructor() {
         super();
 
-        this.events = [
+        this.events.push(
             {
-                selector: "." + this.orderButtonClass,
+                selector: "." + this.itemsPerPageClass,
+                eventType: "change",
+                callback: "handleItemsPerPage",
+            });
+
+        this.events.push(
+            {
+                selector: "." + this.paginationButtonClass,
                 eventType: "click",
-                callback: "handleSort",
-            }
-        ];
-    }
-
-    connectedCallback() {
-        this.setContents();
-
-        if (this.contents.length) {
-            this.render();
-        }
-    }
-
-    /** called when component is removed */
-    disconnectedCallback() {
-        this.removeEvents();
-    }
-
-    constructTableButton(icon, buttonClass) {
-        const tableButton = document.createElement("button");
-        tableButton.classList.add("p-0", "column", "no-border", "icon", buttonClass);
-        tableButton.innerHTML = icon;
-        return tableButton;
-    }
-
-    setContents(newValue) {
-        /** check if it came from an attibute callback, or directly set as property */
-        const valueToSet = newValue || this.contents;
-        try {
-            this.contents = typeof valueToSet === "string" ? JSON.parse(valueToSet) || [] : valueToSet;
-        }
-        catch (e) {
-            this.contents = [];
-        }
-    }
-
-    render() {
-        const table = document.createElement('table');
-        table.classList.add("table");
-
-        const tbody = this.constructTableBodyFromContents();
-        const header = this.constructTableHeaderFromContents();
-        table.appendChild(header);
-        table.appendChild(tbody);
-
-        if (this.footer) {
-            const footer = this.constructTableFooter();
-            table.appendChild(footer);
-        }
-
-        this.innerHTML = table.outerHTML;
+                callback: "handlePageFlip",
+            });
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
 
-        switch (name) {
-            case "contents": {
-                this.setContents(newValue);
-                break;
+        if (name === "items-per-page") {
+            this.itemsPerPage = newValue;
+        }
+        else if (name === "current-page") {
+            this.currentPage = newValue;
+        }
+        super.attributeChangedCallback(name, oldValue, newValue);
+    }
+
+    constructPaginationElement() {
+        const paginationContainer = document.createElement('div');
+        paginationContainer.classList.add("row", "align-center", "justify-between", "my-1",);
+        const itemsSelect = document.createElement('select');
+        itemsSelect.classList.add("pr-1", this.itemsPerPageClass);
+        const contentsLength = this.contents.length;
+        const itemsPerPage = [...this.scale, contentsLength];
+
+        for (const count of itemsPerPage) {
+            const itemsOption = document.createElement('option');
+            itemsOption.value = count;
+            itemsOption.innerHTML = count === contentsLength ? "all" : count.toString();
+
+            if (count === this.itemsPerPage) {
+                itemsOption.setAttribute("selected", "");
             }
-            case "order-by": {
-                this.orderBy = newValue;
-            }
-            default: {
-                this[name] = newValue;
-                break;
-            }
+            itemsSelect.appendChild(itemsOption);
+        }
+
+        const currentCount = document.createElement('span');
+        currentCount.classList.add(this.counterClass);
+        currentCount.innerText = this.constructCountText();
+
+        const selectionText = document.createElement("span");
+        selectionText.classList.add("pr-1");
+        selectionText.innerText = "Rows per page";
+
+        const selectionContainer = document.createElement("div");
+        selectionContainer.appendChild(selectionText);
+        selectionContainer.appendChild(itemsSelect);
+
+        paginationContainer.appendChild(this.constructPaginationButtons());
+        paginationContainer.appendChild(currentCount);
+        paginationContainer.appendChild(selectionContainer);
+
+        return paginationContainer;
+    }
+
+    constructTableContainer() {
+        return document.createElement('div');
+    }
+
+    constructPaginationButtons() {
+        const buttonsContainer = document.createElement("div");
+        buttonsContainer.classList.add("row");
+
+        const startButton = this.constructTableButton(backToStartIcon, this.paginationButtonClass);
+        startButton.classList.add(this.firstPageClass);
+
+        const previousButton = this.constructTableButton(previousIcon, this.paginationButtonClass);
+        previousButton.classList.add(this.previousPageClass);
+
+        if (this.currentPage === 1 || this.itemsPerPage === this.contents.length) {
+            startButton.setAttribute("disabled", "");
+            previousButton.setAttribute("disabled", "");
+        }
+
+        const nextButton = this.constructTableButton(nextIcon, this.paginationButtonClass);
+        nextButton.classList.add(this.nextPageClass);
+
+        const endButton = this.constructTableButton(goToEndIcon, this.paginationButtonClass);
+        endButton.classList.add(this.lastPageClass);
+
+        if (this.currentPage === this.getLastPageNumber() || this.itemsPerPage === this.contents.length) {
+            nextButton.setAttribute("disabled", "");
+            endButton.setAttribute("disabled", "");
+        }
+
+        buttonsContainer.appendChild(startButton);
+        buttonsContainer.appendChild(previousButton);
+        buttonsContainer.appendChild(nextButton);
+        buttonsContainer.appendChild(endButton);
+
+        return buttonsContainer;
+    }
+
+    constructCountText() {
+        const itemCount = this.contents.length;
+        let startNumber = this.currentPage * this.itemsPerPage - this.itemsPerPage + 1;
+        let endNumber = this.itemsPerPage * this.currentPage;
+
+        if (this.itemsPerPage === itemCount) {
+            startNumber = 1;
+            endNumber = itemCount;
+        }
+
+        return `${startNumber}-${endNumber} of ${itemCount}`;
+    }
+
+    handleItemsPerPage(event) {
+        if (event.target.nodeName === "SELECT") {
+            this.itemsPerPage = event.target.value;
+            this.render();
         }
     }
 
-    convertJsonKeyToTitle(jsonKey) {
-        const result = jsonKey.replace(/([A-Z_])/g, ($1) => {
-            if ($1 === "_") return " ";
-            else return ` ${$1.toLowerCase()}`;
-        });
-        return result.charAt(0).toUpperCase() + result.slice(1);
+    getLastPageNumber() {
+        return Math.ceil(this.contents.length / this.itemsPerPage);
     }
 
-    constructTableHeaderFromContents() {
-        const header = document.createElement('thead');
-        if (!this.contents.length) return header;
+    handlePageFlip(event) {
+        const buttonParent = super._findParentElement(event.target, "BUTTON");
+        const classList = buttonParent.classList;
 
-        const properties = Object.keys(this.contents[0]);
+        if (classList.contains(this.firstPageClass)) {
 
-        const headerRow = document.createElement('tr');
-
-        for (const prop of properties) {
-            const orderProperties = this.orderBy.find(obp => obp.propertyName === prop);
-            const headerCell = document.createElement('th');
-            headerCell.classList.add("py-1");
-
-            const headerElement = document.createElement('button');
-            headerElement.classList.add(this.orderButtonClass, "no-border", "row", "no-gap", "w-100", "no-wrap", "align-center");
-            headerElement.dataset.property = prop;
-
-            if (orderProperties) {
-
-                let orderIcon = sortAscendingIcon;
-                if (orderProperties.direction === 'desc') {
-                    orderIcon = sortDescendingIcon;
-                }
-                const orderIconElement = document.createElement('span');
-                orderIconElement.innerHTML = orderIcon;
-                orderIconElement.classList.add("icon-black", "mr-1", "column");
-                headerElement.append(orderIconElement);
-            }
-
-            const headerTextElement = document.createElement('span');
-            headerTextElement.classList.add("stretch", "mx-1");
-            headerTextElement.innerText = this.convertJsonKeyToTitle(prop);
-
-            headerElement.appendChild(headerTextElement);
-
-            headerCell.appendChild(headerElement);
-            headerRow.appendChild(headerCell);
+            this.currentPage = 1;
         }
-        header.appendChild(headerRow);
-        return header;
-    }
 
-    /**
-     * @param {objectArray} customContents optional. Used for pagination
-     */
-    constructTableBodyFromContents(customContents) {
-        const renderedContents = customContents || this.contents;
+        if (classList.contains(this.previousPageClass)) {
 
-        const tbody = document.createElement('tbody');
-
-        if (!renderedContents.length) return tbody;
-        const totalNumberOfItems = renderedContents.length;
-
-        for (let item = 0; item < totalNumberOfItems; item++) {
-
-            const json = renderedContents[item];
-            const row = document.createElement('tr');
-
-            for (const prop in json) {
-                const td = document.createElement('td');
-                const textEl = document.createElement('span');
-                textEl.classList.add("px-1");
-                textEl.innerText = json[prop];
-                td.appendChild(textEl);
-                row.appendChild(td);
+            if (this.currentPage !== 0) {
+                this.currentPage--;
             }
-            tbody.appendChild(row);
         }
-        return tbody;
-    }
 
-    constructTableFooter() {
-        const footer = document.createElement("tfoot");
+        const lastPage = this.getLastPageNumber();
 
-        const footerContents = this.footer;
+        if (classList.contains(this.nextPageClass)) {
 
-        if (!footerContents) return footer;
-        if (!this.contents.length) return footer;
+            if (lastPage !== this.currentPage) {
+                this.currentPage++;
+            }
+        }
 
-        const propLength = Object.keys(this.contents[0]).length;
+        if (classList.contains(this.lastPageClass)) {
+            this.currentPage = lastPage;
+        }
 
-        const footerTr = document.createElement("tr");
-        const footerTd = document.createElement("td");
-        footerTd.setAttribute("colspan", propLength);
-        footerTd.innerHTML = footerContents;
-        footer.appendChild(footerTr);
-        footerTr.appendChild(footerTd);
-        return footer;
-    }
-
-    handleSort(event) {
-        const buttonParent = this._findParentElement(event.target, "BUTTON");
-        const property = buttonParent.dataset.property;
-
-        this.applySortToTable(property);
         this.render();
     }
 
-    applySortToTable(property) {
-        const sortedProperty = this.queryableObject.sortDetails.find(sortDetail => sortDetail.propertyName === property);
-        /** remove the one set */
-        if (sortedProperty) {
-            this._orderBy = this.orderBy.filter(orderBy => orderBy.propertyName !== sortedProperty.propertyName);
-            this.queryableObject.sortDetails = this.queryableObject.sortDetails.filter(sortDetail => sortDetail.propertyName !== property);
-        }
 
-        if (!sortedProperty) {
-            this.queryableObject.orderBy(property, "asc");
-            this._orderBy.push({ propertyName: property, direction: "asc" });
+    getPageContents() {
+        if (!this.contents.length) return [];
+
+        const itemCount = this.contents.length;
+        let startNumber = this.currentPage * this.itemsPerPage - this.itemsPerPage + 1;
+        let endNumber = this.itemsPerPage * this.currentPage;
+
+        if (this.itemsPerPage === itemCount) {
+            startNumber = 1;
+            endNumber = itemCount;
         }
-        else if (sortedProperty.direction === 'asc') {
-            this.queryableObject.orderBy(property, "desc");
-            this._orderBy.push({ propertyName: property, direction: "desc" });
-        }
+        return this.contents.slice(startNumber - 1, endNumber);
     }
 
-    addEvents() {
-        if (this.isConnected) {
-            for (const eventToAdd of this.events) {
-                const elements = this.querySelectorAll(eventToAdd.selector);
+    render() {
+        super.beforeRender();
+        this.classList.add("inline-block");
+        const table = document.createElement('table');
+        table.classList.add("table");
 
-                for (const element of elements) {
-                    /** the callback needs to be the key of the property corresponding to the function of the class, to preserve 'this' */
-                    element.addEventListener(eventToAdd.eventType, (event) => this[eventToAdd.callback](event));
-                }
-            }
+        const tbody = this.constructTableBodyFromContents(this.getPageContents());
+        const header = this.constructTableHeaderFromContents();
+        table.appendChild(header);
+        table.appendChild(tbody);
+
+        if (this.footerContents) {
+            const footer = this.constructTableFooter();
+            table.appendChild(footer);
         }
-    }
+        const container = this.constructTableContainer();
 
-    removeEvents() {
-        for (const eventToRemove of this.events) {
-            const elements = this.querySelectorAll(eventToRemove.selector);
+        container.appendChild(this.constructPaginationElement());
+        container.appendChild(table);
 
-            for (const element of elements) {
-                element.removeEventListener(eventToRemove.eventType, (event) => this[eventToRemove.callback](event));
-            }
+        if (this.itemsPerPage >= 25) {
+            container.appendChild(this.constructPaginationElement());
         }
-    }
 
-    _findParentElement(node, nodeName) {
-        if (node.nodeName === nodeName) {
-            return node;
-        }
-        else {
-            return this._findParentElement(node.parentNode, nodeName);
-        }
-    }
+        this.innerHTML = container.outerHTML;
+        super.afterRender();
 
-    beforeRender() {
-        this.removeEvents();
-    }
-
-    afterRender() {
-        this.addEvents();
     }
 }
 

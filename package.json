@@ -23,6 +23,6 @@
   },
   "dependencies": {
     "@pennions/jess": "^2.5.0",
-    "@pennions/joq": "^1.1.2"
+    "@pennions/joq": "^1.1.3"
   }
 }

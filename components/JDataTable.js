@@ -1,6 +1,6 @@
-import { JPaginatedTable } from './JPaginatedTable';
+import { JTable } from './JTable';
 
-export class JDataTable extends JPaginatedTable {
+export class JDataTable extends JTable {
 
     constructor() {
         super();
