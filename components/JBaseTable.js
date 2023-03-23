@@ -10,12 +10,16 @@ export class JBaseTable extends HTMLElement {
 
     _orderBy = [];
     _filters = [];
+    _searchDebounce;
+    _search = "";
 
     static get observedAttributes() {
         return ["contents", "footer"];
     };
 
     orderButtonClass = "order-by";
+    filterSelectlistClass = "filterlist";
+    searchboxClass = "searchbox";
 
     set contents(value) {
         this.analyzeData(value);
@@ -79,10 +83,16 @@ export class JBaseTable extends HTMLElement {
                 callback: "handleSort",
             },
             {
-                selector: '.filterlist',
+                selector: "." + this.filterSelectlistClass,
                 eventType: "change",
                 callback: "handleFilter"
-            }
+            },
+            {
+                selector: "." + this.searchboxClass,
+                eventType: "keyup",
+                callback: "handleSearch"
+            },
+
         ];
     }
 
@@ -99,6 +109,13 @@ export class JBaseTable extends HTMLElement {
         this.removeEvents();
     }
 
+    constructTableContainer() {
+        const container = document.createElement('div');
+        const searchbox = this.constructSearchbox();
+        container.appendChild(searchbox);
+        return container;
+    }
+
     constructFilterSelectlist(options, property) {
         const sortedOptions = Array.from(options).sort((a, b) => a.toString().localeCompare(b.toString()));
 
@@ -108,6 +125,10 @@ export class JBaseTable extends HTMLElement {
         allOption.value = "all";
         allOption.innerText = "all";
         selectlistEl.appendChild(allOption);
+
+        if (this._search.length) {
+            selectlistEl.setAttribute("disabled", "");
+        }
 
         const activeFilter = this.filters.find(filter => filter.propertyName === property);
 
@@ -123,6 +144,15 @@ export class JBaseTable extends HTMLElement {
             selectlistEl.appendChild(optionEl);
         }
         return selectlistEl;
+    }
+
+    constructSearchbox() {
+        const inputEl = document.createElement('input');
+        inputEl.classList.add(this.searchboxClass);
+        inputEl.type = "text";
+        inputEl.setAttribute("value", this._search);
+        inputEl.setAttribute("placeholder", "Type to search");
+        return inputEl;
     }
 
     constructTableButton(icon, buttonClass) {
@@ -218,7 +248,7 @@ export class JBaseTable extends HTMLElement {
         for (const prop of this.properties) {
             const groupBySelectlistElement = this.constructFilterSelectlist(this.uniqueEntriesByProperties[prop], prop);
 
-            groupBySelectlistElement.classList.add("w-100", "filterlist");
+            groupBySelectlistElement.classList.add("w-100", this.filterSelectlistClass);
 
             const orderProperties = this.orderBy.find(obp => obp.propertyName === prop);
             const headerCell = document.createElement('th');
@@ -263,17 +293,18 @@ export class JBaseTable extends HTMLElement {
 
         if (!renderedContents.length) return tbody;
         const totalNumberOfItems = renderedContents.length;
+        const properties = Array.from(this.properties);
 
         for (let item = 0; item < totalNumberOfItems; item++) {
 
             const json = renderedContents[item];
             const row = document.createElement('tr');
 
-            for (const prop in json) {
+            for (const prop of properties) {
                 const td = document.createElement('td');
                 const textEl = document.createElement('span');
                 textEl.classList.add("px-1");
-                textEl.innerText = json[prop];
+                textEl.innerText = json[prop] || "";
                 td.appendChild(textEl);
                 row.appendChild(td);
             }
@@ -299,6 +330,35 @@ export class JBaseTable extends HTMLElement {
         footer.appendChild(footerTr);
         footerTr.appendChild(footerTd);
         return footer;
+    }
+
+    handleSearch(event) {
+        this._search = event.target.value;
+
+        if (this._searchDebounce) {
+            clearTimeout(this._searchDebounce);
+        }
+
+        this._searchDebounce = setTimeout(async () => {
+            this._filters = [];
+            clearTimeout(this._searchDebounce);
+
+            const properties = Array.from(this.properties);
+            const filtersToApply = [];
+            for (const propertyName of properties) {
+                filtersToApply.push({ propertyName, operator: "like", value: this._search, type: "or" });
+            }
+
+            if (this._search.length) {
+                this.queryableObject.filter(filtersToApply);
+            }
+            else {
+                this.queryableObject.filterDetails = [];
+            }
+
+            this.render();
+        }, 750);
+
     }
 
     handleFilter(event) {

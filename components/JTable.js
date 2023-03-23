@@ -123,10 +123,6 @@ export class JTable extends JBaseTable {
         return paginationContainer;
     }
 
-    constructTableContainer() {
-        return document.createElement('div');
-    }
-
     constructPaginationButtons() {
         const buttonsContainer = document.createElement("div");
         buttonsContainer.classList.add("row");
@@ -247,7 +243,7 @@ export class JTable extends JBaseTable {
             const footer = this.constructTableFooter();
             table.appendChild(footer);
         }
-        const container = this.constructTableContainer();
+        const container = super.constructTableContainer();
 
         container.appendChild(this.constructPaginationElement());
         container.appendChild(table);
