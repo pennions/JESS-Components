@@ -3,7 +3,13 @@ import { sortAscendingIcon, sortDescendingIcon } from './EmbeddedFeatherIcons';
 
 export class JBaseTable extends HTMLElement {
 
+    properties = new Set();
+    propertyLabelDictionary = {};
+
+    uniqueEntriesByProperties = {};
+
     _orderBy = [];
+    _filters = [];
 
     static get observedAttributes() {
         return ["contents", "footer"];
@@ -12,6 +18,7 @@ export class JBaseTable extends HTMLElement {
     orderButtonClass = "order-by";
 
     set contents(value) {
+        this.analyzeData(value);
         this._contents = new JOQ(value);
         this.render();
     }
@@ -22,7 +29,7 @@ export class JBaseTable extends HTMLElement {
 
     get queryableObject() {
         if (Array.isArray(this._contents)) {
-            return new JOQ([]);
+            return new JOQ(this._contents);
         }
         else {
             return this._contents;
@@ -50,6 +57,18 @@ export class JBaseTable extends HTMLElement {
         this.render();
     }
 
+    get filters() {
+        return this._filters || [];
+    }
+    set filters(value) {
+        this._filters = value;
+
+        for (const filter of this.filters) {
+            this.applyFilterToTable(filter);
+        }
+        this.render();
+    }
+
     constructor() {
         super();
 
@@ -58,6 +77,11 @@ export class JBaseTable extends HTMLElement {
                 selector: "." + this.orderButtonClass,
                 eventType: "click",
                 callback: "handleSort",
+            },
+            {
+                selector: '.filterlist',
+                eventType: "change",
+                callback: "handleFilter"
             }
         ];
     }
@@ -75,11 +99,54 @@ export class JBaseTable extends HTMLElement {
         this.removeEvents();
     }
 
+    constructFilterSelectlist(options, property) {
+        const sortedOptions = Array.from(options).sort((a, b) => a.toString().localeCompare(b.toString()));
+
+        const selectlistEl = document.createElement('select');
+        selectlistEl.dataset.property = property;
+        const allOption = document.createElement('option');
+        allOption.value = "all";
+        allOption.innerText = "all";
+        selectlistEl.appendChild(allOption);
+
+        const activeFilter = this.filters.find(filter => filter.propertyName === property);
+
+        for (const option of sortedOptions) {
+            const optionEl = document.createElement('option');
+            optionEl.value = option;
+            optionEl.innerText = option;
+
+            if (activeFilter && activeFilter.value === optionEl.value) {
+                optionEl.setAttribute("selected", "");
+            }
+
+            selectlistEl.appendChild(optionEl);
+        }
+        return selectlistEl;
+    }
+
     constructTableButton(icon, buttonClass) {
         const tableButton = document.createElement("button");
         tableButton.classList.add("p-0", "column", "no-border", "icon", buttonClass);
         tableButton.innerHTML = icon;
         return tableButton;
+    }
+
+    analyzeData(value) {
+        const contentLength = value.length;
+
+        for (let index = 0; index < contentLength; index++) {
+            const keys = Object.keys(value[index]);
+
+            for (const key of keys) {
+                this.properties.add(key);
+
+                if (!this.uniqueEntriesByProperties[key]) {
+                    this.uniqueEntriesByProperties[key] = new Set();
+                }
+                this.uniqueEntriesByProperties[key].add(value[index][key]);
+            }
+        }
     }
 
     setContents(newValue) {
@@ -98,8 +165,8 @@ export class JBaseTable extends HTMLElement {
         const table = document.createElement('table');
         table.classList.add("table");
 
-        const tbody = this.constructTableBodyFromContents();
         const header = this.constructTableHeaderFromContents();
+        const tbody = this.constructTableBodyFromContents();
         table.appendChild(header);
         table.appendChild(tbody);
 
@@ -130,22 +197,29 @@ export class JBaseTable extends HTMLElement {
     }
 
     convertJsonKeyToTitle(jsonKey) {
+        if (typeof jsonKey !== 'string') jsonKey = jsonKey.toString();
+        if (this.propertyLabelDictionary[jsonKey]) return this.propertyLabelDictionary[jsonKey];
+
         const result = jsonKey.replace(/([A-Z_])/g, ($1) => {
             if ($1 === "_") return " ";
             else return ` ${$1.toLowerCase()}`;
         });
-        return result.charAt(0).toUpperCase() + result.slice(1);
+        const convertedKey = result.charAt(0).toUpperCase() + result.slice(1);
+        this.propertyLabelDictionary[jsonKey] = convertedKey;
+        return convertedKey;
     }
 
     constructTableHeaderFromContents() {
         const header = document.createElement('thead');
-        if (!this.contents.length) return header;
-
-        const properties = Object.keys(this.contents[0]);
+        if (!this.properties.size) return header;
 
         const headerRow = document.createElement('tr');
 
-        for (const prop of properties) {
+        for (const prop of this.properties) {
+            const groupBySelectlistElement = this.constructFilterSelectlist(this.uniqueEntriesByProperties[prop], prop);
+
+            groupBySelectlistElement.classList.add("w-100", "filterlist");
+
             const orderProperties = this.orderBy.find(obp => obp.propertyName === prop);
             const headerCell = document.createElement('th');
             headerCell.classList.add("py-1");
@@ -173,6 +247,7 @@ export class JBaseTable extends HTMLElement {
             headerElement.appendChild(headerTextElement);
 
             headerCell.appendChild(headerElement);
+            headerCell.appendChild(groupBySelectlistElement);
             headerRow.appendChild(headerCell);
         }
         header.appendChild(headerRow);
@@ -183,8 +258,7 @@ export class JBaseTable extends HTMLElement {
      * @param {objectArray} customContents optional. Used for pagination
      */
     constructTableBodyFromContents(customContents) {
-        const renderedContents = customContents || this.contents;
-
+        const renderedContents = customContents && customContents.length ? customContents : this.contents;
         const tbody = document.createElement('tbody');
 
         if (!renderedContents.length) return tbody;
@@ -227,6 +301,27 @@ export class JBaseTable extends HTMLElement {
         return footer;
     }
 
+    handleFilter(event) {
+        const propertyName = event.target.dataset.property;
+
+        this.applyFilterToTable({ propertyName, operator: "==", value: event.target.value });
+        this.render();
+    }
+
+    /**
+     * @param {*} filterDetail  propertyName: string, value: any, operator: FilterOperator 
+     */
+    applyFilterToTable(filterDetail) {
+        const property = filterDetail.propertyName;
+
+        this.queryableObject.filterDetails = this.queryableObject.filterDetails.filter(filterDetail => filterDetail.propertyName !== property);
+        this._filters = this.filters.filter(filterDetail => filterDetail.propertyName !== property);
+        if (filterDetail.value === 'all') return;
+
+        this.queryableObject.filterDetails.push(filterDetail);
+        this._filters.push(filterDetail);
+    }
+
     handleSort(event) {
         const buttonParent = this._findParentElement(event.target, "BUTTON");
         const property = buttonParent.dataset.property;
@@ -237,6 +332,7 @@ export class JBaseTable extends HTMLElement {
 
     applySortToTable(property) {
         const sortedProperty = this.queryableObject.sortDetails.find(sortDetail => sortDetail.propertyName === property);
+
         /** remove the one set */
         if (sortedProperty) {
             this._orderBy = this.orderBy.filter(orderBy => orderBy.propertyName !== sortedProperty.propertyName);

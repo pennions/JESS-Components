@@ -2,7 +2,6 @@ import { backToStartIcon, goToEndIcon, nextIcon, previousIcon } from './Embedded
 import { JBaseTable } from './JBaseTable';
 
 export class JTable extends JBaseTable {
-
     counterClass = 'page-counter';
     itemsPerPageClass = 'items-per-page';
     paginationButtonClass = 'pagination-button';
@@ -238,10 +237,10 @@ export class JTable extends JBaseTable {
         this.classList.add("inline-block");
         const table = document.createElement('table');
         table.classList.add("table");
-
-        const tbody = this.constructTableBodyFromContents(this.getPageContents());
-        const header = this.constructTableHeaderFromContents();
+        const header = super.constructTableHeaderFromContents();
         table.appendChild(header);
+
+        const tbody = super.constructTableBodyFromContents(this.getPageContents());
         table.appendChild(tbody);
 
         if (this.footerContents) {

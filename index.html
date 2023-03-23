@@ -7,6 +7,16 @@
     <title>Vite App</title>
   </head>
   <body>
+    <p class="ml-3 mt-2">Draggable column</p>
+    <div class="column w-25 p-3">
+      <div class="bg-primary p-2">1</div>
+      <div class="bg-danger p-2">2</div>
+      <div class="bg-gray p-2">3</div>
+      <div class="bg-gray-dark p-2">4</div>
+      <div class="bg-accent p-2">5</div>
+    
+    </div>
+
     <div class="w-50">
       <j-code language="html">
         <div>
@@ -37,11 +47,7 @@
         id="snake-set"
         footer='Snakes, source: <a href="https://en.wikipedia.org/wiki/Snake" target="_blank">wikipedia</a>'
       ></j-base-table>
-      <j-table
-        id="iris-set"
-        order-by="petalWidth"
-        asc="petalWidth"
-      ></j-table>
+      <j-table id="iris-set" order-by="petalWidth" asc="petalWidth"></j-table>
     </div>
 
     <div>

@@ -22,7 +22,7 @@
     "vite": "^4.0.0"
   },
   "dependencies": {
-    "@pennions/jess": "^2.5.0",
+    "@pennions/jess": "^2.5.1",
     "@pennions/joq": "^1.1.3"
   }
 }
